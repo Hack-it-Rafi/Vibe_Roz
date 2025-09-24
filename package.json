@@ -1,0 +1,30 @@
+{
+    "name": "roz",
+    "version": "1.0.0",
+    "description": "",
+    "type": "module",
+    "scripts": {
+        "build": "cross-env BUILD=dev FORMAT=esm rollup -c ./rollup.config.js",
+        "start": "node dist/index.js",
+        "dev": "npm run build && npm start",
+        "server": "npm run build && npm start"
+    },
+    "devDependencies": {
+        "@rollup/plugin-json": "^6.1.0",
+        "@types/inquirer": "^9.0.8",
+        "@types/node": "^22.9.0",
+        "cross-env": "^7.0.3",
+        "rollup-plugin-esbuild": "^6.2.1",
+        "rollup-plugin-sourcemaps": "^0.6.3",
+        "rollup-plugin-typescript-paths": "^1.5.0"
+    },
+    "dependencies": {
+        "@smythos/sdk": "^1.1.9",
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.3",
+        "chalk": "^5.4.1",
+        "cors": "^2.8.5",
+        "express": "^5.1.0",
+        "inquirer": "^12.6.3"
+    }
+}

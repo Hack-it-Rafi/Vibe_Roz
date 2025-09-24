@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>AI Agent Chat Client</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }
+            .container {
+                background: white;
+                border-radius: 10px;
+                padding: 20px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+            .agent-selector {
+                margin-bottom: 20px;
+            }
+            .agent-selector select {
+                padding: 10px;
+                font-size: 16px;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+            }
+            .chat-container {
+                height: 400px;
+                overflow-y: auto;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                padding: 15px;
+                margin-bottom: 15px;
+                background-color: #fafafa;
+            }
+            .message {
+                margin-bottom: 15px;
+                padding: 10px;
+                border-radius: 8px;
+                max-width: 80%;
+            }
+            .user-message {
+                background-color: #007bff;
+                color: white;
+                margin-left: auto;
+                text-align: right;
+            }
+            .assistant-message {
+                background-color: #e9ecef;
+                color: #333;
+            }
+            .tool-call {
+                background-color: #fff3cd;
+                color: #856404;
+                font-size: 0.9em;
+                font-style: italic;
+            }
+            .input-container {
+                display: flex;
+                gap: 10px;
+            }
+            .input-container input {
+                flex: 1;
+                padding: 10px;
+                font-size: 16px;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+            }
+            .input-container button {
+                padding: 10px 20px;
+                font-size: 16px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+            .input-container button:hover {
+                background-color: #0056b3;
+            }
+            .input-container button:disabled {
+                background-color: #6c757d;
+                cursor: not-allowed;
+            }
+            .status {
+                margin-bottom: 10px;
+                padding: 5px 10px;
+                border-radius: 3px;
+                font-size: 14px;
+            }
+            .status.connected {
+                background-color: #d4edda;
+                color: #155724;
+            }
+            .status.thinking {
+                background-color: #fff3cd;
+                color: #856404;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🤖 AI Agent Chat Client</h1>
+
+            <div class="agent-selector">
+                <label for="agentSelect">Choose an agent:</label>
+                <select id="agentSelect">
+                    <option value="">Select an agent...</option>
+                    <option value="book">📚 Book Assistant</option>
+                    <option value="crypto">₿ Crypto Assistant</option>
+                </select>
+            </div>
+
+            <div id="status" class="status"></div>
+
+            <div id="chatContainer" class="chat-container">
+                <div class="message assistant-message">Welcome! Please select an agent to start chatting.</div>
+            </div>
+
+            <div class="input-container">
+                <input type="text" id="messageInput" placeholder="Type your message here..." disabled />
+                <button id="sendBtn" disabled onclick="sendMessage()">Send</button>
+                <button id="streamBtn" disabled onclick="sendStreamMessage()">Stream</button>
+            </div>
+        </div>
+
+        <script>
+            const API_BASE = 'http://localhost:3000/api';
+            let currentSessionId = null;
+            let currentAgent = null;
+
+            const agentSelect = document.getElementById('agentSelect');
+            const statusDiv = document.getElementById('status');
+            const chatContainer = document.getElementById('chatContainer');
+            const messageInput = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const streamBtn = document.getElementById('streamBtn');
+
+            // Agent selection handler
+            agentSelect.addEventListener('change', async function () {
+                const agentName = this.value;
+                if (!agentName) {
+                    currentSessionId = null;
+                    currentAgent = null;
+                    messageInput.disabled = true;
+                    sendBtn.disabled = true;
+                    streamBtn.disabled = true;
+                    statusDiv.textContent = '';
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE}/chat/start`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ agentName }),
+                    });
+
+                    const data = await response.json();
+                    currentSessionId = data.sessionId;
+                    currentAgent = data.agentName;
+
+                    statusDiv.textContent = `Connected to ${data.agentName}`;
+                    statusDiv.className = 'status connected';
+
+                    messageInput.disabled = false;
+                    sendBtn.disabled = false;
+                    streamBtn.disabled = false;
+                    messageInput.focus();
+
+                    addMessage('assistant', `Connected to ${data.agentName}. How can I help you?`);
+                } catch (error) {
+                    console.error('Error starting chat:', error);
+                    statusDiv.textContent = 'Error connecting to agent';
+                    statusDiv.className = 'status';
+                }
+            });
+
+            // Enter key handler
+            messageInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            function addMessage(type, content, isToolCall = false) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type === 'user' ? 'user-message' : 'assistant-message'}`;
+                if (isToolCall) {
+                    messageDiv.className += ' tool-call';
+                }
+                messageDiv.textContent = content;
+                chatContainer.appendChild(messageDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+
+            async function sendMessage() {
+                const message = messageInput.value.trim();
+                if (!message || !currentSessionId) return;
+
+                addMessage('user', message);
+                messageInput.value = '';
+                sendBtn.disabled = true;
+                streamBtn.disabled = true;
+                statusDiv.textContent = 'Thinking...';
+                statusDiv.className = 'status thinking';
+
+                try {
+                    const response = await fetch(`${API_BASE}/chat/message`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sessionId: currentSessionId,
+                            message: message,
+                        }),
+                    });
+
+                    const data = await response.json();
+                    if (response.ok) {
+                        addMessage('assistant', data.response);
+                    } else {
+                        addMessage('assistant', `Error: ${data.error}`);
+                    }
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                    addMessage('assistant', 'Error sending message. Please try again.');
+                } finally {
+                    sendBtn.disabled = false;
+                    streamBtn.disabled = false;
+                    statusDiv.textContent = `Connected to ${currentAgent}`;
+                    statusDiv.className = 'status connected';
+                }
+            }
+
+            async function sendStreamMessage() {
+                const message = messageInput.value.trim();
+                if (!message || !currentSessionId) return;
+
+                addMessage('user', message);
+                messageInput.value = '';
+                sendBtn.disabled = true;
+                streamBtn.disabled = true;
+                statusDiv.textContent = 'Thinking...';
+                statusDiv.className = 'status thinking';
+
+                // Create a message div for streaming content
+                const responseDiv = document.createElement('div');
+                responseDiv.className = 'message assistant-message';
+                chatContainer.appendChild(responseDiv);
+
+                try {
+                    const response = await fetch(`${API_BASE}/chat/stream`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sessionId: currentSessionId,
+                            message: message,
+                        }),
+                    });
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+
+                                    if (data.type === 'content') {
+                                        responseDiv.textContent += data.content;
+                                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                                    } else if (data.type === 'tool_call') {
+                                        addMessage('assistant', `🔧 Using tool: ${data.tool}`, true);
+                                    } else if (data.type === 'error') {
+                                        addMessage('assistant', `Error: ${data.error}`);
+                                    }
+                                } catch (e) {
+                                    // Ignore parsing errors for incomplete JSON
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error streaming message:', error);
+                    addMessage('assistant', 'Error streaming message. Please try again.');
+                } finally {
+                    sendBtn.disabled = false;
+                    streamBtn.disabled = false;
+                    statusDiv.textContent = `Connected to ${currentAgent}`;
+                    statusDiv.className = 'status connected';
+                }
+            }
+        </script>
+    </body>
+</html>
