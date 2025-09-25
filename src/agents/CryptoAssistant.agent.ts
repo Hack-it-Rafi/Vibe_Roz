@@ -14,7 +14,7 @@ const agentPath = path.resolve(__dirname, './data/crypto-assistant.smyth');
 
 const agent = Agent.import(agentPath, {
     id: 'crypto-assistant', //<=== Chat persistence requires an explicitly identified agent
-    model: 'openai/gpt-oss-120b', //<=== we can override agent settings, here we are setting the model to gpt-4o
+    model: 'gemini-2.5-flash',
 });
 
 export default agent;
